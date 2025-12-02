@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Demo CDR - NXLink</title>
+    <title>Dashboard Demo - Feed de Llamadas en Vivo (Demo)</title>
     <style>
         body { font-family: Arial, sans-serif; background-color: #f4f7f6; color: #333; margin: 20px; }
         .container { max-width: 900px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
@@ -16,34 +16,27 @@
         .details-table th, .details-table td { text-align: left; padding: 10px; border-bottom: 1px solid #ddd; }
         .details-table th { background-color: #f0f8ff; width: 35%; }
         .error { color: red; font-weight: bold; }
-        #loading { text-align: center; padding: 20px; }
-        /* Estilo para el formulario de carga */
-        #input-form { background: #fff; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ddd; }
-        #input-form textarea { width: 100%; height: 150px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; resize: vertical; }
-        #input-form button { background-color: #28a745; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; margin-top: 10px; }
-        #input-form button:hover { background-color: #218838; }
+        #status-bar { text-align: center; margin-bottom: 20px; padding: 10px; background: #e0ffe0; border-radius: 4px; }
     </style>
 </head>
-<body>
+<body onload="startLiveFeed()">
 
     <div class="container">
-        <h1>Dashboard Demo - Análisis CDR</h1>
+        <h1>Dashboard Demo - Feed de Llamadas en Vivo (Demo)</h1>
         
-        <div id="input-form">
-            <h2>Paso 1: Pegar JSON del CDR</h2>
-            <textarea id="cdr-input" placeholder="Pega aquí el JSON completo de la llamada..." required></textarea>
-            <button onclick="processData()">Analizar Llamada</button>
+        <div id="status-bar">
+            <span>Última actualización: <span id="last-update">...</span></span>
         </div>
 
-        <div id="loading" style="display: none;">Cargando y procesando datos...</div>
-        
-        <div id="dashboard-content" style="display: none;">
-            <h2 id="call-agent">Resumen de Llamada</h2>
+        <div id="dashboard-content">
+            
+            <h2 id="live-feed-title">Última Interacción</h2>
             
             <div class="kpi-grid" id="kpi-metrics">
-                </div>
+                <p>Esperando la primera llamada...</p>
+            </div>
 
-            <h2>Detalles de Trazabilidad y Operación</h2>
+            <h2>Detalles de Trazabilidad</h2>
             <table class="details-table">
                 <tbody id="details-table-body">
                     </tbody>
@@ -54,56 +47,54 @@
     </div>
 
     <script>
-        // ¡IMPORTANTE! Reemplaza esta URL con la URL de tu Worker desplegado
+        // ¡IMPORTANTE! Reemplaza esta URL con la URL de tu Worker desplegado.
         const WORKER_URL = 'https://dashboard-nxlink.ursus006.workers.dev/'; 
 
-        /**
-         * Función principal que toma el JSON del textarea, lo envía al Worker
-         * y muestra los resultados.
-         */
-        async function processData() {
-            const rawJsonText = document.getElementById('cdr-input').value;
-            const contentDiv = document.getElementById('dashboard-content');
-            const loadingDiv = document.getElementById('loading');
-            const kpiGrid = document.getElementById('kpi-metrics');
-            const detailsBody = document.getElementById('details-table-body');
-            const callAgent = document.getElementById('call-agent');
-            
-            contentDiv.style.display = 'none';
-            loadingDiv.style.display = 'block';
-            
-            try {
-                const rawCDR = JSON.parse(rawJsonText); // Verificar si el JSON es válido localmente
+        let isInitialized = false; // Bandera para saber si ya se cargó la primera data
 
-                // Llamada POST al Worker
+        /**
+         * Función que inicia la consulta periódica (polling) al Worker.
+         */
+        function startLiveFeed() {
+            // Llama a fetchData inmediatamente y luego cada 2 segundos.
+            fetchData();
+            setInterval(fetchData, 2000); // Actualiza cada 2 segundos
+        }
+
+        /**
+         * Llama al Worker (GET) para obtener la lista de los últimos CDRs.
+         */
+        async function fetchData() {
+            try {
                 const response = await fetch(WORKER_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(rawCDR)
+                    method: 'GET', // Pages usa GET para leer la data del Worker/KV
                 });
 
-                const cleanData = await response.json();
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
 
-                if (response.ok) {
-                    renderDashboard(cleanData);
-                    callAgent.textContent = `Resumen de Llamada - Agente: ${cleanData['Agente']}`;
-                    contentDiv.style.display = 'block';
-                } else {
-                    alert(`Error al procesar en el Worker: ${cleanData.error || response.statusText}`);
+                const allCdrData = await response.json(); // Debe devolver un array
+
+                document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+                
+                if (allCdrData && allCdrData.length > 0) {
+                    renderDashboard(allCdrData[0]); // Muestra el más reciente
+                    isInitialized = true;
+                } else if (!isInitialized) {
+                    // Si no hay data y es la primera carga, muestra el mensaje de espera
+                    document.getElementById('kpi-metrics').innerHTML = '<p>Esperando la primera llamada...</p>';
+                    document.getElementById('details-table-body').innerHTML = '';
                 }
 
             } catch (error) {
-                alert('Error en el JSON o la conexión: ' + error.message);
-            } finally {
-                loadingDiv.style.display = 'none';
+                console.error('Error al obtener datos del Worker:', error);
+                document.getElementById('last-update').textContent = `ERROR: ${error.message}`;
             }
         }
 
         /**
-         * Renderiza la data limpia en las tarjetas KPI y la tabla de detalles.
-         * @param {Object} data - El JSON limpio devuelto por el Worker.
+         * Renderiza el CDR más reciente en la vista principal (KPIs y Tabla).
          */
         function renderDashboard(data) {
             const kpiGrid = document.getElementById('kpi-metrics');
@@ -112,7 +103,6 @@
             detailsBody.innerHTML = '';
 
             // --- 1. Renderizar KPIs ---
-            // Las claves para KPIs deben ser las 4 métricas principales
             const kpiKeys = [
                 { key: 'Duración Total', label: 'Duración (MM:SS)' },
                 { key: 'Calidad de Audio (MOS)', label: 'Calidad MOS' },
@@ -131,20 +121,18 @@
             });
 
             // --- 2. Renderizar Tabla de Detalles ---
-            // Renderizar el resto de campos en la tabla
+            // Solo renderizar las claves que no fueron usadas en los KPIs
             for (const key in data) {
-                // Saltar las claves ya usadas en los KPIs
                 if (kpiKeys.some(k => k.key === key)) continue; 
 
                 const row = detailsBody.insertRow();
                 const headerCell = row.insertCell();
                 const valueCell = row.insertCell();
                 
-                headerCell.outerHTML = `<th>${key}</th>`; // Usar <th> para los encabezados
+                headerCell.outerHTML = `<th>${key}</th>`;
                 
                 let displayValue = data[key];
                 
-                // Formato especial para URLs
                 if (key === 'Grabación URL' && displayValue) {
                     displayValue = `<a href="${displayValue}" target="_blank">Escuchar Grabación</a>`;
                 }
