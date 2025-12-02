@@ -3,45 +3,84 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Demo - Feed de Llamadas en Vivo (Demo)</title>
+    <title>Análisis de Rendimiento de Contact Center (LIVE)</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
-        body { font-family: Arial, sans-serif; background-color: #f4f7f6; color: #333; margin: 20px; }
-        .container { max-width: 900px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
-        h1, h2 { color: #007bff; border-bottom: 2px solid #eee; padding-bottom: 5px; }
-        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
-        .kpi-card { background: #e9f7ff; padding: 15px; border-radius: 6px; text-align: center; border-left: 5px solid #007bff; }
-        .kpi-card h3 { margin: 0; font-size: 14px; color: #555; }
-        .kpi-card p { font-size: 28px; font-weight: bold; margin: 5px 0 0; }
-        .details-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        .details-table th, .details-table td { text-align: left; padding: 10px; border-bottom: 1px solid #ddd; }
-        .details-table th { background-color: #f0f8ff; width: 35%; }
-        .error { color: red; font-weight: bold; }
-        #status-bar { text-align: center; margin-bottom: 20px; padding: 10px; background: #e0ffe0; border-radius: 4px; }
+        /* --- ESTILOS GENERALES Y TIPOGRAFÍA --- */
+        body { font-family: 'Segoe UI', Arial, sans-serif; background-color: #f5f7fa; color: #333; margin: 0; padding: 20px; }
+        .container { max-width: 1200px; margin: auto; background: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08); }
+        h1 { color: #1c3d5a; border-bottom: 1px solid #e0e6ed; padding-bottom: 10px; margin-bottom: 20px; font-size: 24px; font-weight: 600; }
+        h2 { color: #4a5568; margin-top: 25px; margin-bottom: 15px; font-size: 18px; font-weight: 500; }
+
+        /* --- LAYOUT DE CONTENIDO PRINCIPAL (2 COLUMNAS) --- */
+        .main-content { display: grid; grid-template-columns: 2fr 1fr; /* 2/3 para gráficos, 1/3 para detalles */
+            gap: 30px; margin-top: 20px; }
+        
+        /* --- KPIs AGRUPADOS (SUPERIORES) --- */
+        .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 20px; }
+        .kpi-card { background: #e8f4fd; padding: 15px; border-radius: 6px; text-align: center; border-bottom: 4px solid #3b82f6; transition: all 0.2s; }
+        .kpi-card:hover { box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); }
+        .kpi-card h3 { margin: 0; font-size: 12px; color: #555; text-transform: uppercase; }
+        .kpi-card p { font-size: 28px; font-weight: 700; margin: 5px 0 0; color: #1e40af; }
+
+        /* --- SECCIÓN DE GRÁFICOS --- */
+        .chart-container { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05); }
+        .chart-grid { display: grid; grid-template-columns: 1fr; gap: 20px; } /* Los gráficos van apilados verticalmente */
+
+        /* --- SECCIÓN DE DETALLES (COLUMNA DERECHA) --- */
+        .details-panel { background: #f9fbfd; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05); height: 100%; }
+        .details-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        .details-table th, .details-table td { text-align: left; padding: 10px 0; border-bottom: 1px dotted #e0e6ed; font-size: 13px; }
+        .details-table th { width: 45%; font-weight: 600; color: #4a5568; }
+        .details-table td { font-weight: 400; color: #1f2937; }
+        .details-table tr:last-child th, .details-table tr:last-child td { border-bottom: none; }
+
+        /* --- BARRA DE ESTADO --- */
+        #status-bar { text-align: right; margin-bottom: 20px; padding: 8px 15px; background: #e9f7ff; color: #1e40af; border-radius: 4px; font-size: 14px; }
     </style>
 </head>
 <body onload="startLiveFeed()">
 
     <div class="container">
-        <h1>Dashboard Demo - Feed de Llamadas en Vivo (Demo)</h1>
+        <h1>Dashboard Analítico de Contact Center (LIVE)</h1>
         
         <div id="status-bar">
-            <span>Última actualización: <span id="last-update">...</span></span>
+            <span>Última actualización: <span id="last-update">...</span> | </span>
+            <span id="call-count">0 registros en log (Máx. 4)</span>
         </div>
 
-        <div id="dashboard-content">
+        <h2>Métricas Promedio de Rendimiento (Últimas llamadas)</h2>
+        <div class="kpi-grid" id="kpi-aggregate">
+            <p>Esperando llamadas para cálculos agregados...</p>
+        </div>
+
+        <div class="main-content">
             
-            <h2 id="live-feed-title">Última Interacción</h2>
-            
-            <div class="kpi-grid" id="kpi-metrics">
-                <p>Esperando la primera llamada...</p>
+            <div>
+                <h2>Tendencia Histórica de Rendimiento</h2>
+                <div class="chart-grid">
+                    <div class="chart-container">
+                        <canvas id="mosChart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="durationChart"></canvas>
+                    </div>
+                </div>
             </div>
 
-            <h2>Detalles de Trazabilidad</h2>
-            <table class="details-table">
-                <tbody id="details-table-body">
+            <div class="details-panel">
+                <h2>Detalles del Último Registro</h2>
+                <table class="details-table">
+                    <tbody id="details-table-body">
+                        <tr><th>Agente</th><td>N/A</td></tr>
+                        <tr><th>ID de Llamada</th><td>N/A</td></tr>
+                        <tr><th>Inicio</th><td>N/A</td></tr>
+                        <tr><th>Estado</th><td>N/A</td></tr>
+                        <tr><th>Duración Total</th><td>N/A</td></tr>
                     </tbody>
-            </table>
-            
+                </table>
+            </div>
+
         </div>
         
     </div>
@@ -49,42 +88,38 @@
     <script>
         // ¡IMPORTANTE! Reemplaza esta URL con la URL de tu Worker desplegado.
         const WORKER_URL = 'https://dashboard-nxlink.ursus006.workers.dev/'; 
+        
+        let mosChartInstance = null;
+        let durationChartInstance = null;
 
-        let isInitialized = false; // Bandera para saber si ya se cargó la primera data
+        // --- FUNCIONES DE INICIALIZACIÓN Y POLLING ---
 
-        /**
-         * Función que inicia la consulta periódica (polling) al Worker.
-         */
         function startLiveFeed() {
-            // Llama a fetchData inmediatamente y luego cada 2 segundos.
             fetchData();
             setInterval(fetchData, 2000); // Actualiza cada 2 segundos
         }
 
-        /**
-         * Llama al Worker (GET) para obtener la lista de los últimos CDRs.
-         */
         async function fetchData() {
             try {
-                const response = await fetch(WORKER_URL, {
-                    method: 'GET', // Pages usa GET para leer la data del Worker/KV
-                });
+                const response = await fetch(WORKER_URL, { method: 'GET' });
 
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
 
-                const allCdrData = await response.json(); // Debe devolver un array
-
-                document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+                const allCdrData = await response.json(); 
                 
+                document.getElementById('last-update').textContent = new Date().toLocaleTimeString('es-PE');
+                document.getElementById('call-count').textContent = `${allCdrData.length} registros en log (Máx. 4)`;
+
                 if (allCdrData && allCdrData.length > 0) {
-                    renderDashboard(allCdrData[0]); // Muestra el más reciente
-                    isInitialized = true;
-                } else if (!isInitialized) {
-                    // Si no hay data y es la primera carga, muestra el mensaje de espera
-                    document.getElementById('kpi-metrics').innerHTML = '<p>Esperando la primera llamada...</p>';
+                    renderDashboard(allCdrData); 
+                } else {
+                    // Limpiar y mostrar estado inicial si no hay data
+                    document.getElementById('kpi-aggregate').innerHTML = '<p>Esperando llamadas para cálculos agregados...</p>';
                     document.getElementById('details-table-body').innerHTML = '';
+                    if (mosChartInstance) mosChartInstance.destroy();
+                    if (durationChartInstance) durationChartInstance.destroy();
                 }
 
             } catch (error) {
@@ -93,52 +128,147 @@
             }
         }
 
-        /**
-         * Renderiza el CDR más reciente en la vista principal (KPIs y Tabla).
-         */
-        function renderDashboard(data) {
-            const kpiGrid = document.getElementById('kpi-metrics');
-            const detailsBody = document.getElementById('details-table-body');
-            kpiGrid.innerHTML = '';
-            detailsBody.innerHTML = '';
+        // --- FUNCIONES DE RENDERIZADO Y GRÁFICOS ---
+        
+        function renderDashboard(dataArray) {
+            const latestData = dataArray[0];
+            
+            renderAggregateKPIs(dataArray);
+            renderDetailsTable(latestData);
+            renderCharts(dataArray);
+        }
 
-            // --- 1. Renderizar KPIs ---
-            const kpiKeys = [
-                { key: 'Duración Total', label: 'Duración (MM:SS)' },
-                { key: 'Calidad de Audio (MOS)', label: 'Calidad MOS' },
-                { key: 'Costo Estimado (USD)', label: 'Costo' },
-                { key: 'Estado de Llamada', label: 'Resultado' }
+        function renderAggregateKPIs(dataArray) {
+            const kpiGrid = document.getElementById('kpi-aggregate');
+            kpiGrid.innerHTML = '';
+            
+            // --- CÁLCULOS AGREGADOS ---
+            const totalMos = dataArray.reduce((sum, cdr) => sum + (cdr['Calidad de Audio (MOS)'] || 0), 0);
+            const avgMos = (totalMos / dataArray.length).toFixed(2);
+            
+            const totalDurationSeconds = dataArray.reduce((sum, cdr) => {
+                const parts = (cdr['Duración Total'] || '00:00').split(':');
+                return sum + (parseInt(parts[0]) * 60) + parseInt(parts[1]);
+            }, 0);
+            const avgDurationSeconds = Math.round(totalDurationSeconds / dataArray.length);
+            const avgDurationFormatted = formatSecondsToMMSS(avgDurationSeconds);
+
+            const answeredCalls = dataArray.filter(cdr => cdr['Estado de Llamada'] && !cdr['Estado de Llamada'].includes('No Contestada')).length;
+            const answerRate = dataArray.length > 0 ? ((answeredCalls / dataArray.length) * 100).toFixed(0) : 0;
+
+            const kpis = [
+                { label: 'Duración Promedio', value: avgDurationFormatted, unit: '' },
+                { label: 'Tasa de Respuesta', value: answerRate, unit: '%' },
+                { label: 'MOS Promedio', value: avgMos, unit: '' },
+                { label: 'Costo Promedio', value: (dataArray.reduce((sum, cdr) => sum + (cdr['Costo Estimado (USD)'] || 0), 0) / dataArray.length).toFixed(3), unit: '$' }
             ];
 
-            kpiKeys.forEach(kpi => {
+            kpis.forEach(kpi => {
                 const card = document.createElement('div');
                 card.className = 'kpi-card';
                 card.innerHTML = `
                     <h3>${kpi.label}</h3>
-                    <p>${data[kpi.key]}</p>
+                    <p>${kpi.unit}${kpi.value}</p>
                 `;
                 kpiGrid.appendChild(card);
             });
+        }
+        
+        function renderDetailsTable(data) {
+            const detailsBody = document.getElementById('details-table-body');
+            detailsBody.innerHTML = '';
 
-            // --- 2. Renderizar Tabla de Detalles ---
-            // Solo renderizar las claves que no fueron usadas en los KPIs
-            for (const key in data) {
-                if (kpiKeys.some(k => k.key === key)) continue; 
+            // Definimos el orden y los campos que queremos mostrar en el panel derecho
+            const detailKeys = [
+                'ID de Llamada', 'Agente', 'Nombre de Agente', 
+                'Cliente (Caller)', 'Número Llamado (Callee)', 
+                'Inicio de Llamada', 'Fin de Llamada', 'Tiempo de Timbre (seg)',
+                'Duración Total', 'Estado de Llamada', 'Grabación URL'
+            ];
 
+            detailKeys.forEach(key => {
+                const value = data[key] || 'N/A';
                 const row = detailsBody.insertRow();
                 const headerCell = row.insertCell();
                 const valueCell = row.insertCell();
                 
-                headerCell.outerHTML = `<th>${key}</th>`;
+                headerCell.outerHTML = `<th>${key.replace(/\s\(([^)]+)\)/g, '')}</th>`; // Quita el texto entre paréntesis del título
                 
-                let displayValue = data[key];
+                let displayValue = value;
                 
-                if (key === 'Grabación URL' && displayValue) {
+                if (key === 'Grabación URL' && displayValue && displayValue !== 'N/A') {
                     displayValue = `<a href="${displayValue}" target="_blank">Escuchar Grabación</a>`;
                 }
 
                 valueCell.innerHTML = displayValue;
-            }
+            });
+        }
+
+        function renderCharts(dataArray) {
+            // Invertimos el array para que el gráfico se dibuje del más antiguo al más nuevo (izquierda a derecha)
+            const reversedData = [...dataArray].reverse(); 
+            
+            const labels = reversedData.map((_, index) => `Llamada #${index + 1}`);
+            
+            const mosData = reversedData.map(cdr => cdr['Calidad de Audio (MOS)'] || 0);
+            const durationData = reversedData.map(cdr => {
+                const parts = (cdr['Duración Total'] || '00:00').split(':');
+                return (parseInt(parts[0]) * 60) + parseInt(parts[1]);
+            });
+
+            // Opciones de estilo para Chart.js (Estilo Power BI/limpio)
+            const chartOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { display: false } },
+                    y: { grid: { color: '#e0e6ed' } }
+                }
+            };
+
+            // 1. Gráfico MOS
+            if (mosChartInstance) mosChartInstance.destroy();
+            mosChartInstance = new Chart(document.getElementById('mosChart'), {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Calidad MOS',
+                        data: mosData,
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 5
+                    }]
+                },
+                options: { ...chartOptions, scales: { ...chartOptions.scales, y: { ...chartOptions.scales.y, min: 3 } } }
+            });
+
+            // 2. Gráfico Duración
+            if (durationChartInstance) durationChartInstance.destroy();
+            durationChartInstance = new Chart(document.getElementById('durationChart'), {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Duración (segundos)',
+                        data: durationData,
+                        backgroundColor: '#10b981',
+                        borderColor: '#059669',
+                        borderWidth: 1
+                    }]
+                },
+                options: { ...chartOptions, scales: { ...chartOptions.scales, y: { ...chartOptions.scales.y, beginAtZero: true } } }
+            });
+        }
+        
+        // Función auxiliar para formatear segundos de vuelta a MM:SS
+        function formatSecondsToMMSS(totalSeconds) {
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
         }
     </script>
 </body>
