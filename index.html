@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demo CDR - NXLink</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f7f6; color: #333; margin: 20px; }
+        .container { max-width: 900px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
+        h1, h2 { color: #007bff; border-bottom: 2px solid #eee; padding-bottom: 5px; }
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .kpi-card { background: #e9f7ff; padding: 15px; border-radius: 6px; text-align: center; border-left: 5px solid #007bff; }
+        .kpi-card h3 { margin: 0; font-size: 14px; color: #555; }
+        .kpi-card p { font-size: 28px; font-weight: bold; margin: 5px 0 0; }
+        .details-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .details-table th, .details-table td { text-align: left; padding: 10px; border-bottom: 1px solid #ddd; }
+        .details-table th { background-color: #f0f8ff; width: 35%; }
+        .error { color: red; font-weight: bold; }
+        #loading { text-align: center; padding: 20px; }
+        /* Estilo para el formulario de carga */
+        #input-form { background: #fff; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ddd; }
+        #input-form textarea { width: 100%; height: 150px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; resize: vertical; }
+        #input-form button { background-color: #28a745; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; margin-top: 10px; }
+        #input-form button:hover { background-color: #218838; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Dashboard Demo - Análisis CDR</h1>
+        
+        <div id="input-form">
+            <h2>Paso 1: Pegar JSON del CDR</h2>
+            <textarea id="cdr-input" placeholder="Pega aquí el JSON completo de la llamada..." required></textarea>
+            <button onclick="processData()">Analizar Llamada</button>
+        </div>
+
+        <div id="loading" style="display: none;">Cargando y procesando datos...</div>
+        
+        <div id="dashboard-content" style="display: none;">
+            <h2 id="call-agent">Resumen de Llamada</h2>
+            
+            <div class="kpi-grid" id="kpi-metrics">
+                </div>
+
+            <h2>Detalles de Trazabilidad y Operación</h2>
+            <table class="details-table">
+                <tbody id="details-table-body">
+                    </tbody>
+            </table>
+            
+        </div>
+        
+    </div>
+
+    <script>
+        // ¡IMPORTANTE! Reemplaza esta URL con la URL de tu Worker desplegado
+        const WORKER_URL = 'https://dashboard-nxlink.ursus006.workers.dev/'; 
+
+        /**
+         * Función principal que toma el JSON del textarea, lo envía al Worker
+         * y muestra los resultados.
+         */
+        async function processData() {
+            const rawJsonText = document.getElementById('cdr-input').value;
+            const contentDiv = document.getElementById('dashboard-content');
+            const loadingDiv = document.getElementById('loading');
+            const kpiGrid = document.getElementById('kpi-metrics');
+            const detailsBody = document.getElementById('details-table-body');
+            const callAgent = document.getElementById('call-agent');
+            
+            contentDiv.style.display = 'none';
+            loadingDiv.style.display = 'block';
+            
+            try {
+                const rawCDR = JSON.parse(rawJsonText); // Verificar si el JSON es válido localmente
+
+                // Llamada POST al Worker
+                const response = await fetch(WORKER_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(rawCDR)
+                });
+
+                const cleanData = await response.json();
+
+                if (response.ok) {
+                    renderDashboard(cleanData);
+                    callAgent.textContent = `Resumen de Llamada - Agente: ${cleanData['Agente']}`;
+                    contentDiv.style.display = 'block';
+                } else {
+                    alert(`Error al procesar en el Worker: ${cleanData.error || response.statusText}`);
+                }
+
+            } catch (error) {
+                alert('Error en el JSON o la conexión: ' + error.message);
+            } finally {
+                loadingDiv.style.display = 'none';
+            }
+        }
+
+        /**
+         * Renderiza la data limpia en las tarjetas KPI y la tabla de detalles.
+         * @param {Object} data - El JSON limpio devuelto por el Worker.
+         */
+        function renderDashboard(data) {
+            const kpiGrid = document.getElementById('kpi-metrics');
+            const detailsBody = document.getElementById('details-table-body');
+            kpiGrid.innerHTML = '';
+            detailsBody.innerHTML = '';
+
+            // --- 1. Renderizar KPIs ---
+            // Las claves para KPIs deben ser las 4 métricas principales
+            const kpiKeys = [
+                { key: 'Duración Total', label: 'Duración (MM:SS)' },
+                { key: 'Calidad de Audio (MOS)', label: 'Calidad MOS' },
+                { key: 'Costo Estimado (USD)', label: 'Costo' },
+                { key: 'Estado de Llamada', label: 'Resultado' }
+            ];
+
+            kpiKeys.forEach(kpi => {
+                const card = document.createElement('div');
+                card.className = 'kpi-card';
+                card.innerHTML = `
+                    <h3>${kpi.label}</h3>
+                    <p>${data[kpi.key]}</p>
+                `;
+                kpiGrid.appendChild(card);
+            });
+
+            // --- 2. Renderizar Tabla de Detalles ---
+            // Renderizar el resto de campos en la tabla
+            for (const key in data) {
+                // Saltar las claves ya usadas en los KPIs
+                if (kpiKeys.some(k => k.key === key)) continue; 
+
+                const row = detailsBody.insertRow();
+                const headerCell = row.insertCell();
+                const valueCell = row.insertCell();
+                
+                headerCell.outerHTML = `<th>${key}</th>`; // Usar <th> para los encabezados
+                
+                let displayValue = data[key];
+                
+                // Formato especial para URLs
+                if (key === 'Grabación URL' && displayValue) {
+                    displayValue = `<a href="${displayValue}" target="_blank">Escuchar Grabación</a>`;
+                }
+
+                valueCell.innerHTML = displayValue;
+            }
+        }
+    </script>
+</body>
+</html>
